@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>セミMAP</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#FFFBF1;
+    --cream-2:#FFF3D9;
+    --green:#5FB86C;
+    --green-dark:#3E9650;
+    --green-pale:#E3F5E4;
+    --yellow:#FFD466;
+    --yellow-dark:#E8A93A;
+    --pink:#FF9EB0;
+    --pink-dark:#F0708A;
+    --lavender:#C9B8F2;
+    --lavender-dark:#A78FE0;
+    --brown:#6B5842;
+    --brown-light:#A6957C;
+    --white:#FFFFFF;
+    --shadow:rgba(107,88,66,0.18);
+    --text:#6B5842;
+    --text-dim:#A6957C;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; width:100%;
+    font-family:'M PLUS Rounded 1c', sans-serif;
+    background:var(--green-pale);
+    color:var(--text);
+    overflow:hidden;
+  }
+  #map{
+    position:absolute; inset:0; width:100%; height:100%;
+    background:#cfe8d4;
+  }
+  .leaflet-tile-pane{
+    filter:saturate(1.05) brightness(1.08) contrast(0.96) hue-rotate(2deg);
+  }
+  .leaflet-control-attribution{
+    background:rgba(255,251,241,0.85)!important;
+    color:var(--text-dim)!important;
+    font-size:9px!important;
+    font-family:'M PLUS Rounded 1c', sans-serif!important;
+    border-radius:8px 0 0 0!important;
+  }
+  .leaflet-control-attribution a{ color:var(--green-dark)!important; }
+  .leaflet-control-zoom{ border:none!important; box-shadow:0 3px 0 var(--shadow), 0 4px 10px rgba(0,0,0,0.12)!important; border-radius:14px!important; overflow:hidden; }
+  .leaflet-control-zoom a{
+    background:var(--white)!important;
+    color:var(--green-dark)!important;
+    border:none!important;
+    border-bottom:2px solid var(--green-pale)!important;
+  }
+  .leaflet-control-zoom a:last-child{ border-bottom:none!important; }
+  .leaflet-control-zoom a:hover{ background:var(--green-pale)!important; }
+
+  /* soft card */
+  .pixel-box{
+    background:var(--cream);
+    border:none;
+    border-radius:20px;
+    box-shadow:0 3px 0 var(--shadow), 0 6px 16px rgba(0,0,0,0.08);
+  }
+  .pixel-btn{
+    background:var(--white);
+    border:none;
+    border-radius:999px;
+    box-shadow:0 3px 0 var(--shadow);
+    color:var(--green-dark);
+    cursor:pointer;
+    font-weight:700;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .pixel-btn:hover{ transform:translateY(-2px); box-shadow:0 5px 0 var(--shadow); }
+  .pixel-btn:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--shadow); }
+  .pixel-btn.active{ background:linear-gradient(180deg, var(--yellow), var(--yellow-dark)); color:#6B4A00; box-shadow:0 3px 0 #C98F2A; }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    position:absolute; top:14px; left:14px; right:14px; z-index:1000;
+    display:flex; align-items:flex-start; justify-content:space-between;
+    pointer-events:none;
+  }
+  .brand{
+    pointer-events:auto;
+    padding:10px 18px;
+    display:flex; align-items:center; gap:10px;
+    font-size:16px; font-weight:800;
+    color:var(--green-dark);
+    letter-spacing:0.02em;
+  }
+  .brand svg{ width:26px; height:26px; }
+  .counter-chip{
+    pointer-events:auto;
+    padding:10px 16px;
+    font-size:12px; font-weight:700;
+    color:var(--brown);
+    background:var(--yellow)!important;
+    box-shadow:0 3px 0 var(--yellow-dark)!important;
+  }
+  .counter-chip b{ color:#fff; }
+
+  /* ---------- Toolbar (bottom-left) ---------- */
+  .toolbar{
+    position:absolute; left:14px; bottom:14px; z-index:1000;
+    display:flex; flex-direction:column; gap:10px;
+    pointer-events:none;
+  }
+  .toolbar > *{ pointer-events:auto; }
+  .pill-btn{
+    display:flex; align-items:center; gap:8px;
+    font-family:'M PLUS Rounded 1c', sans-serif;
+    font-size:12.5px; font-weight:700;
+    padding:12px 18px;
+  }
+  .pill-btn svg{ width:16px; height:16px; flex-shrink:0; }
+
+  .legend{
+    padding:14px 16px;
+    font-size:11.5px;
+    color:var(--text-dim);
+    display:none;
+    min-width:190px;
+  }
+  .legend.open{ display:block; }
+  .legend-row{ display:flex; align-items:center; gap:9px; padding:6px 4px; border-radius:12px; cursor:pointer; }
+  .legend-row .swatch{ width:16px; height:16px; border-radius:50%; box-shadow:0 0 0 2px var(--white), 0 0 0 3px rgba(0,0,0,0.06); flex-shrink:0; }
+  .legend-row span{ flex:1; }
+  .legend-row.dim{ opacity:0.4; }
+  .legend-row:hover{ background:var(--green-pale); }
+  .legend-title{ font-size:10.5px; font-weight:700; letter-spacing:0.04em; color:var(--green-dark); margin-bottom:8px; }
+
+  /* ---------- Add-mode banner ---------- */
+  .add-banner{
+    position:absolute; top:76px; left:50%; transform:translateX(-50%);
+    z-index:1000;
+    padding:10px 20px;
+    font-size:12.5px; font-weight:700;
+    display:none;
+    align-items:center; gap:8px;
+    background:var(--yellow);
+    color:#6B4A00;
+    border:none;
+    border-radius:999px;
+    box-shadow:0 3px 0 var(--yellow-dark), 0 5px 14px rgba(0,0,0,0.12);
+  }
+  .add-banner.show{ display:flex; }
+
+  /* ---------- Side panel ---------- */
+  .panel{
+    position:absolute; top:14px; right:14px; bottom:14px; z-index:1100;
+    width:380px; max-width:92vw;
+    transform:translateX(120%);
+    transition:transform .3s cubic-bezier(.34,1.4,.4,1);
+    display:flex; flex-direction:column;
+    border-radius:24px;
+  }
+  .panel.open{ transform:translateX(0); }
+  .panel-header{
+    padding:18px 20px 14px;
+    border-bottom:2px dashed var(--green-pale);
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+  }
+  .panel-header h2{
+    font-size:16px; font-weight:800; margin:0 0 4px; line-height:1.5; color:var(--green-dark);
+  }
+  .panel-header input.name-input{
+    font-family:'M PLUS Rounded 1c', sans-serif;
+    font-size:15px; font-weight:700; color:var(--green-dark);
+    width:100%; padding:4px 0; margin:0 0 4px;
+    background:transparent; border:none; border-bottom:2px dashed var(--text-dim);
+  }
+  .panel-header .sub{ font-size:11px; color:var(--text-dim); }
+  .close-btn{
+    background:var(--pink); border:none;
+    border-radius:50%;
+    box-shadow:0 3px 0 var(--pink-dark);
+    cursor:pointer; color:#fff; font-size:13px; line-height:1; font-weight:700;
+    width:30px; height:30px; padding:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .close-btn:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--pink-dark); }
+  .panel-body{ flex:1; overflow-y:auto; padding:16px 20px 20px; }
+  .panel-body::-webkit-scrollbar{ width:8px; }
+  .panel-body::-webkit-scrollbar-thumb{ background:var(--green-pale); border-radius:8px; }
+
+  .address-row{
+    margin-bottom:16px; padding:12px 14px;
+    background:var(--green-pale); border:none; border-radius:16px;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .address-text{ font-size:12px; color:var(--brown); line-height:1.6; }
+  .gmaps-link{
+    align-self:flex-start; font-size:11.5px; color:var(--green-dark); font-weight:700;
+    text-decoration:underline; cursor:pointer;
+  }
+  .gmaps-link:hover{ color:var(--pink-dark); }
+  .summary-row{ display:flex; flex-wrap:wrap; gap:7px; margin-bottom:16px; }
+  .species-badge{
+    font-size:11px; padding:6px 11px; font-weight:700;
+    background:var(--white); color:var(--brown);
+    display:flex; align-items:center; gap:5px;
+    border:none; border-radius:999px;
+    box-shadow:0 2px 0 rgba(0,0,0,0.06);
+  }
+  .species-badge b{ color:var(--green-dark); }
+
+  .section-title{
+    font-size:11.5px; font-weight:800; color:var(--green-dark); margin:0 0 10px;
+  }
+  .section-title::before{ content:'🌿 '; }
+
+  .record-card{
+    background:var(--white);
+    border:none; border-radius:18px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.06);
+    padding:13px 14px;
+    margin-bottom:10px;
+    position:relative;
+  }
+  .record-top{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:8px; gap:8px; }
+  .record-type-tags{ display:flex; flex-wrap:wrap; gap:5px; }
+  .type-tag{
+    font-size:10.5px; font-weight:700; padding:4px 10px; border-radius:999px;
+    color:#fff; border:none;
+  }
+  .type-tag.捕獲{ background:var(--yellow-dark); }
+  .type-tag.羽化・幼虫{ background:var(--lavender-dark); }
+  .record-date{ font-size:11px; color:var(--text-dim); white-space:nowrap; }
+  .record-species{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px; }
+  .chip-mini{ font-size:10.5px; background:var(--green-pale); color:var(--green-dark); font-weight:700; padding:4px 9px; border-radius:999px; border:none; }
+  .record-note{ font-size:12px; color:var(--brown); line-height:1.6; white-space:pre-wrap; }
+  .record-meta{ font-size:11.5px; color:var(--text-dim); display:flex; gap:12px; margin-bottom:6px; }
+  .record-actions{ position:absolute; top:10px; right:10px; display:flex; gap:10px; }
+  .record-edit{
+    background:none; border:none; cursor:pointer; color:var(--green-dark); font-size:11px; font-weight:700;
+  }
+  .record-edit:hover{ text-decoration:underline; }
+  .record-del{
+    background:none; border:none; cursor:pointer; color:var(--pink-dark); font-size:11px; font-weight:700;
+  }
+  .record-del:hover{ text-decoration:underline; }
+
+  .add-record-btn{
+    width:100%; padding:13px;
+    background:var(--green-pale); border:2px dashed var(--green); color:var(--green-dark);
+    border-radius:16px;
+    font-family:'M PLUS Rounded 1c', sans-serif; font-size:12.5px; font-weight:700; cursor:pointer; margin-top:4px;
+  }
+  .add-record-btn:hover{ background:#D6EFD9; }
+
+  .delete-point-btn{
+    margin-top:18px; width:100%; padding:11px;
+    background:none; border:none; color:var(--text-dim);
+    border-radius:16px;
+    font-family:'M PLUS Rounded 1c', sans-serif; font-size:11.5px; cursor:pointer;
+  }
+  .delete-point-btn:hover{ color:var(--pink-dark); background:#FFF0F3; }
+
+  /* ---------- Form ---------- */
+  .form-block label{
+    display:block; font-size:11.5px; font-weight:700; color:var(--green-dark);
+    margin:14px 0 6px;
+  }
+  .form-block label:first-child{ margin-top:0; }
+  .form-block .field-hint{ font-size:10.5px; color:var(--text-dim); margin:-3px 0 8px; line-height:1.4; }
+  .form-block input[type=text], .form-block input[type=date], .form-block textarea{
+    width:100%; padding:10px 12px;
+    border:none; border-radius:12px; background:var(--green-pale); color:var(--brown);
+    font-family:'M PLUS Rounded 1c', sans-serif; font-size:13px;
+  }
+  .form-block input[type=text]:focus, .form-block input[type=date]:focus, .form-block textarea:focus{
+    outline:2px solid var(--green); outline-offset:1px;
+  }
+  .form-block textarea{ resize:vertical; min-height:56px; }
+  .type-choice, .species-choice, .icon-choice{ display:flex; flex-wrap:wrap; gap:8px; }
+  .choice-chip{
+    padding:8px 13px; font-size:12px; font-weight:700; cursor:pointer;
+    border:none; border-radius:999px; background:var(--green-pale); color:var(--brown);
+    user-select:none;
+  }
+  .choice-chip:hover{ background:#D6EFD9; }
+  .choice-chip.sel{ background:var(--green); color:#fff; }
+  .choice-chip.sel::before{ content:'✓ '; }
+  .form-actions{ display:flex; gap:8px; margin-top:20px; }
+  .btn-primary, .btn-secondary{
+    flex:1; padding:13px; font-family:'M PLUS Rounded 1c', sans-serif; font-size:13px; font-weight:800; cursor:pointer;
+    border:none; border-radius:999px;
+  }
+  .btn-primary{ background:var(--green); color:#fff; box-shadow:0 3px 0 var(--green-dark); }
+  .btn-primary:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--green-dark); }
+  .btn-secondary{ background:var(--white); color:var(--text-dim); box-shadow:0 2px 0 rgba(0,0,0,0.08); }
+  .btn-primary:disabled{ opacity:0.35; cursor:not-allowed; }
+
+  /* marker: どうぶつの森・図鑑カード風 */
+  .species-cluster{ display:flex; gap:5px; align-items:flex-end; }
+  .species-chip-icon{
+    width:36px; height:36px; border-radius:11px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--cream);
+    border:2px solid #EAE0BE; position:relative;
+    box-shadow:0 3px 6px rgba(0,0,0,0.22);
+  }
+  .species-chip-icon.ring-capture::after{
+    content:''; position:absolute; right:-3px; bottom:-3px;
+    width:12px; height:12px; border-radius:50%;
+    background:var(--yellow-dark); border:2px solid var(--white);
+  }
+  .species-chip-icon.ring-larva::after{
+    content:''; position:absolute; right:-3px; bottom:-3px;
+    width:12px; height:12px; border-radius:50%;
+    background:var(--lavender-dark); border:2px solid var(--white);
+  }
+  .species-chip-icon.ring-extra{
+    background:var(--green); color:#fff; font-size:11px; font-weight:800;
+    font-family:'M PLUS Rounded 1c', sans-serif;
+    border-color:var(--green-dark);
+  }
+  .species-chip-icon.ring-otherbug{ font-size:18px; }
+  .species-chip-icon.ring-otherbug::after{
+    content:''; position:absolute; right:-3px; bottom:-3px;
+    width:12px; height:12px; border-radius:50%;
+    background:var(--green-dark); border:2px solid var(--white);
+  }
+
+  /* ---------- Search bar ---------- */
+  .search-wrap{
+    position:absolute; top:78px; left:14px;
+    z-index:1000; display:flex; flex-direction:column; align-items:flex-start; gap:8px;
+  }
+  .search-bar{ display:flex; gap:8px; padding:8px; align-items:center; }
+  .search-bar input{
+    font-family:'M PLUS Rounded 1c', sans-serif; font-size:13px;
+    padding:10px 14px; border:none; border-radius:999px; background:var(--green-pale); color:var(--brown);
+    width:220px;
+  }
+  .search-bar input:focus{ outline:2px solid var(--green); }
+  .search-bar .pixel-btn{ padding:10px 16px; font-size:12.5px; white-space:nowrap; }
+  .search-status{
+    font-size:11.5px; font-weight:700; padding:8px 14px; color:#6B4A00;
+    background:var(--yellow); border:none; border-radius:999px;
+    box-shadow:0 3px 0 var(--yellow-dark);
+    display:none;
+  }
+  .search-status.show{ display:block; }
+  .search-pin{
+    width:20px; height:20px; border-radius:50%;
+    background:var(--pink); border:3px solid var(--white);
+    box-shadow:0 3px 6px rgba(0,0,0,0.25);
+    position:relative;
+  }
+  .search-pin::after{
+    content:''; position:absolute; inset:-6px; border-radius:50%;
+    border:2px solid var(--pink); animation:searchPulse 1.4s ease-out infinite;
+  }
+  @keyframes searchPulse{
+    0%{ transform:scale(0.6); opacity:1; }
+    100%{ transform:scale(2.2); opacity:0; }
+  }
+
+  @media (max-width:560px){
+    .panel{ width:100%; max-width:100%; right:0; left:0; top:0; bottom:0; border-radius:0; }
+    .brand{ font-size:13px; padding:8px 14px; }
+    .legend{ min-width:150px; }
+    .search-bar input{ width:140px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="topbar">
+  <div class="brand pixel-box">
+    <span id="brandIcon" class="brand-icon"></span>
+    セミMAP
+  </div>
+  <div class="counter-chip pixel-box">とった記録 <b id="pointCount">0</b> 件</div>
+</div>
+
+<div class="add-banner" id="addBanner">▼ 地図をタップして新しいポイントを登録 ▼</div>
+
+<div class="search-wrap">
+  <div class="search-bar pixel-box">
+    <input type="text" id="searchInput" placeholder="住所・地名で検索（例：薬院駅）">
+    <button class="pixel-btn" id="searchBtn">検索</button>
+  </div>
+  <div class="search-status" id="searchStatus"></div>
+</div>
+
+<div class="toolbar">
+  <div class="legend pixel-box" id="legend">
+    <div class="legend-title">表示フィルタ</div>
+    <div class="legend-row" data-filter="all" id="filterAll">
+      <div class="swatch" style="background:var(--yellow);"></div>
+      <span>すべて表示</span>
+    </div>
+    <div class="legend-row" data-filter="捕獲">
+      <div class="swatch" style="background:var(--yellow-dark);"></div>
+      <span>捕獲ポイント</span>
+    </div>
+    <div class="legend-row" data-filter="larva">
+      <div class="swatch" style="background:var(--lavender-dark);"></div>
+      <span>羽化・幼虫</span>
+    </div>
+  </div>
+  <button class="pill-btn pixel-btn" id="legendToggle">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    凡例・絞り込み
+  </button>
+  <button class="pill-btn pixel-btn" id="addModeBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    ポイントを追加
+  </button>
+</div>
+
+<div class="panel pixel-box" id="panel">
+  <div class="panel-header">
+    <div style="flex:1;">
+      <h2 id="panelTitleView" style="display:none;"></h2>
+      <input type="text" id="panelTitleInput" class="name-input" placeholder="ポイントの名前" style="display:none;">
+      <div class="sub" id="panelSub"></div>
+    </div>
+    <button class="close-btn" id="panelClose">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+
+  const SPECIES = ['アブラゼミ','クマゼミ','ミンミンゼミ','ニイニイゼミ','ツクツクボウシ','ヒグラシ','エゾゼミ','その他'];
+  const TYPES = ['捕獲','羽化・幼虫'];
+  const TIME_OPTIONS = [
+    { val:'朝',   icon:'🌅' },
+    { val:'昼',   icon:'🌤️' },
+    { val:'夕方', icon:'🌇' },
+    { val:'夜',   icon:'🌙' }
+  ];
+  const WEATHER_OPTIONS = [
+    { val:'晴れ', icon:'☀️' },
+    { val:'曇り', icon:'☁️' },
+    { val:'雨',   icon:'🌧️' }
+  ];
+  const TIME_ICONS = Object.fromEntries(TIME_OPTIONS.map(o=>[o.val,o.icon]));
+  const WEATHER_ICONS = Object.fromEntries(WEATHER_OPTIONS.map(o=>[o.val,o.icon]));
+  // トンボの絵文字は環境によって表示が安定しないため、小さなSVGを自作
+  const DRAGONFLY_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px;">'
+    + '<ellipse cx="6" cy="8" rx="5" ry="2" fill="#8FD9E8" opacity="0.75" transform="rotate(-20 6 8)"/>'
+    + '<ellipse cx="18" cy="8" rx="5" ry="2" fill="#8FD9E8" opacity="0.75" transform="rotate(20 18 8)"/>'
+    + '<ellipse cx="7" cy="15" rx="5" ry="2" fill="#8FD9E8" opacity="0.75" transform="rotate(20 7 15)"/>'
+    + '<ellipse cx="17" cy="15" rx="5" ry="2" fill="#8FD9E8" opacity="0.75" transform="rotate(-20 17 15)"/>'
+    + '<rect x="11" y="4" width="2" height="18" rx="1" fill="#2A7A8C"/>'
+    + '<circle cx="12" cy="4" r="2.2" fill="#2A7A8C"/>'
+    + '</svg>';
+  // ゾウムシは絵文字だと丸っこいカナブン風になってしまうため、
+  // 特徴的な長い鼻（口吻）がわかる小さなSVGを自作
+  const WEEVIL_SVG = '<svg width="16" height="12" viewBox="0 0 28 20" style="vertical-align:-2px;">'
+    + '<ellipse cx="18" cy="10" rx="8" ry="6" fill="#9C7A4F" stroke="#5C4530" stroke-width="1"/>'
+    + '<circle cx="9" cy="9" r="3" fill="#9C7A4F" stroke="#5C4530" stroke-width="1"/>'
+    + '<path d="M7,10.5 C4,11.5 1.5,13 0.5,16" stroke="#5C4530" stroke-width="2" fill="none" stroke-linecap="round"/>'
+    + '<path d="M14,15.5 L12,18.5" stroke="#5C4530" stroke-width="1.2" fill="none" stroke-linecap="round"/>'
+    + '<path d="M20,15.5 L22,18.5" stroke="#5C4530" stroke-width="1.2" fill="none" stroke-linecap="round"/>'
+    + '</svg>';
+  const OTHER_BUG_OPTIONS = [
+    { val:'バッタ',   icon:'🦗' },
+    { val:'トンボ',   icon:DRAGONFLY_SVG },
+    { val:'アリ',     icon:'🐜' },
+    { val:'カナブン', icon:'🪲' },
+    { val:'ゾウムシ', icon:WEEVIL_SVG }
+  ];
+  const OTHER_BUG_ICONS = Object.fromEntries(OTHER_BUG_OPTIONS.map(o=>[o.val,o.icon]));
+  const STORAGE_KEY = 'semitori-points-v1';
+
+  let points = [];
+  let map, markerLayer;
+  let addMode = false;
+  let currentFilter = 'all';
+
+  // ---------- storage ----------
+  // window.storage is only available inside certain sandboxed preview environments;
+  // a normal browser (phone Safari/Chrome, GitHub Pages, etc.) doesn't have it, so
+  // we fall back to the browser's real localStorage, which works everywhere.
+  async function loadPoints(){
+    try{
+      if(window.storage && window.storage.get){
+        const res = await window.storage.get(STORAGE_KEY, false);
+        points = (res && res.value) ? JSON.parse(res.value) : [];
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        points = raw ? JSON.parse(raw) : [];
+      }
+    }catch(e){
+      points = [];
+    }
+    // migrate legacy records: single `type` string -> `types` array, merge 羽化/幼虫発見
+    points.forEach(pt=>{
+      (pt.records||[]).forEach(r=>{
+        if(!r.types){
+          const legacy = r.type;
+          if(legacy === '羽化' || legacy === '幼虫発見') r.types = ['羽化・幼虫'];
+          else if(legacy) r.types = [legacy];
+          else r.types = [];
+          delete r.type;
+        }
+        // 「アリの巣」というラベルは「アリ」に統一
+        if(r.otherBugs) r.otherBugs = r.otherBugs.map(b => b === 'アリの巣' ? 'アリ' : b);
+      });
+    });
+  }
+  async function savePoints(){
+    try{
+      if(window.storage && window.storage.set){
+        await window.storage.set(STORAGE_KEY, JSON.stringify(points), false);
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(points));
+      }
+    }
+    catch(e){ console.error('保存に失敗しました', e); }
+  }
+
+  // ---------- species icons: 図鑑アイコン風（丸みを抑えた、角のある平面イラスト） ----------
+  const SPECIES_ART = {
+    'クマゼミ':       { body:'#2A2A28', bodyDark:'#000000', wing:'#D7DCCE', wingOpacity:0.55, wingLine:'#4A5245', eye:'#1A1030' },
+    'アブラゼミ':     { body:'#7A5530', bodyDark:'#4A3016', wing:'#C4863A', wingOpacity:0.85, wingLine:'#5C3A12', eye:'#241505' },
+    'ミンミンゼミ':   { body:'#1F9E9E', bodyDark:'#0F5F5F', wing:'#E2F5F3', wingOpacity:0.5,  wingLine:'#2A8C8C', eye:'#1A1030' },
+    'ニイニイゼミ':   { body:'#8F7F5A', bodyDark:'#4A4032', wing:'#A79A78', wingOpacity:0.65, wingLine:'#5C513E', eye:'#2B2216', scale:0.78 },
+    'ツクツクボウシ': { body:'#4C7A52', bodyDark:'#213524', wing:'#E7F0DD', wingOpacity:0.45, wingLine:'#4C7A52', eye:'#1A1030', scaleX:0.82 },
+    'ヒグラシ':       { body:'#B5473A', bodyDark:'#6E2A1E', wing:'#F2D9C9', wingOpacity:0.5,  wingLine:'#B5473A', eye:'#1A1030', scaleX:0.82 },
+    'エゾゼミ':       { body:'#3B4A31', bodyDark:'#1B2417', wing:'#C7CCB0', wingOpacity:0.6,  wingLine:'#5B6B4E', eye:'#E0473A' },
+    'その他':         { body:'#8B8378', bodyDark:'#4A443B', wing:'#EDEAE2', wingOpacity:0.5,  wingLine:'#8B8378', eye:'#2B2216' }
+  };
+
+  function realisticCicadaSvg(species, size){
+    const p = SPECIES_ART[species] || SPECIES_ART['その他'];
+    const w = 40, h = 48;
+    const sz = size * (p.scale || 1);
+    const sx = p.scaleX || 1;
+    return `<svg width="${sz}" height="${sz*h/w}" viewBox="0 0 ${w} ${h}">
+      <g transform="translate(20,0) scale(${sx},1) translate(-20,0)">
+      <path d="M20,14 L11,19 L10,32 L14,42 L20,30 Z" fill="${p.wing}" fill-opacity="${p.wingOpacity}" stroke="${p.wingLine}" stroke-width="0.9"/>
+      <path d="M20,16 L13,22 M20,19 L12,27 M20,23 L13,33 M20,26 L16,38" stroke="${p.wingLine}" stroke-width="0.5" fill="none" opacity="0.55"/>
+      <path d="M20,14 L29,19 L30,32 L26,42 L20,30 Z" fill="${p.wing}" fill-opacity="${p.wingOpacity}" stroke="${p.wingLine}" stroke-width="0.9"/>
+      <path d="M20,16 L27,22 M20,19 L28,27 M20,23 L27,33 M20,26 L24,38" stroke="${p.wingLine}" stroke-width="0.5" fill="none" opacity="0.55"/>
+      <path d="M20,27 L20,43" stroke="${p.wingLine}" stroke-width="0.7" opacity="0.5"/>
+      <path d="M13,17 L27,17 L20,27 Z" fill="${p.bodyDark}" stroke="${p.bodyDark}" stroke-width="0.9"/>
+      <path d="M12,7 L28,7 L29,13 L24,17 L16,17 L11,13 Z" fill="${p.body}" stroke="${p.bodyDark}" stroke-width="0.9"/>
+      <circle cx="15.5" cy="10" r="3.2" fill="#FFFFFF" stroke="${p.bodyDark}" stroke-width="0.9"/>
+      <circle cx="24.5" cy="10" r="3.2" fill="#FFFFFF" stroke="${p.bodyDark}" stroke-width="0.9"/>
+      <circle cx="15.9" cy="10.4" r="1.5" fill="${p.eye}"/>
+      <circle cx="24.9" cy="10.4" r="1.5" fill="${p.eye}"/>
+      <circle cx="15.3" cy="9.6" r="0.5" fill="#FFFFFF"/>
+      <circle cx="24.3" cy="9.6" r="0.5" fill="#FFFFFF"/>
+      </g>
+    </svg>`;
+  }
+
+  // セミのぬけがら（空の抜け殻）: 背中に割れ目、うろな目、乾いた質感で「生きた幼虫」と区別
+  const LARVA_PALETTE = { body:'#B08552', bodyDark:'#7A5A34', bodyLine:'#4A3419', crack:'#5C3F22' };
+
+  function realisticLarvaSvg(size){
+    const p = LARVA_PALETTE;
+    const w = 40, h = 48;
+    return `<svg width="${size}" height="${size*h/w}" viewBox="0 0 ${w} ${h}">
+      <path d="M20,10 C28,10 32,18 31,28 C30,38 26,44 20,44 C14,44 10,38 9,28 C8,18 12,10 20,10 Z"
+            fill="${p.body}" stroke="${p.bodyLine}" stroke-width="1"/>
+      <path d="M20,12 L20,42" stroke="${p.crack}" stroke-width="1.6" fill="none" opacity="0.7" stroke-dasharray="3 2"/>
+      <path d="M11,24 C16,26.5 24,26.5 29,24" stroke="${p.bodyDark}" stroke-width="1" fill="none" opacity="0.7"/>
+      <path d="M11,31 C16,33.5 24,33.5 29,31" stroke="${p.bodyDark}" stroke-width="1" fill="none" opacity="0.7"/>
+      <path d="M13,37 C17,38.8 23,38.8 27,37" stroke="${p.bodyDark}" stroke-width="1" fill="none" opacity="0.7"/>
+      <circle cx="20" cy="10" r="5.5" fill="${p.body}" stroke="${p.bodyLine}" stroke-width="1"/>
+      <circle cx="17.5" cy="9" r="1.3" fill="none" stroke="${p.bodyDark}" stroke-width="0.8"/>
+      <circle cx="22.5" cy="9" r="1.3" fill="none" stroke="${p.bodyDark}" stroke-width="0.8"/>
+      <path d="M14,13 C8,13 4,10 2,6" stroke="${p.bodyLine}" stroke-width="2.2" fill="none" stroke-linecap="round" opacity="0.85"/>
+      <path d="M2,6 C4,7 5,9 3,10" stroke="${p.bodyLine}" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.85"/>
+      <path d="M26,13 C32,13 36,10 38,6" stroke="${p.bodyLine}" stroke-width="2.2" fill="none" stroke-linecap="round" opacity="0.85"/>
+      <path d="M38,6 C36,7 35,9 37,10" stroke="${p.bodyLine}" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.85"/>
+      <path d="M10,26 C6,28 4,32 5,36" stroke="${p.bodyLine}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.85"/>
+      <path d="M30,26 C34,28 36,32 35,36" stroke="${p.bodyLine}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.85"/>
+    </svg>`;
+  }
+
+  function pointDominantType(pt){
+    const hasCapture = pt.records.some(r => (r.types||[]).includes('捕獲'));
+    const hasLarva = pt.records.some(r => (r.types||[]).includes('羽化・幼虫'));
+    if(hasCapture && hasLarva) return 'both';
+    if(hasCapture) return 'capture';
+    if(hasLarva) return 'larva';
+    return 'none'; // セミの種別が一つも記録されていない（他の生き物だけの記録など）
+  }
+
+  function speciesTypeFlags(pt){
+    const flags = {};
+    pt.records.forEach(r=>{
+      const isCapture = (r.types||[]).includes('捕獲');
+      const isLarva = (r.types||[]).includes('羽化・幼虫');
+      (r.species||[]).forEach(sp=>{
+        if(!flags[sp]) flags[sp] = { captured:false, larva:false };
+        if(isCapture) flags[sp].captured = true;
+        if(isLarva) flags[sp].larva = true;
+      });
+    });
+    return flags;
+  }
+
+  function buildClusterIcon(pt){
+    const summary = speciesSummary(pt); // [[name,count],...] most-recorded first
+    const flags = speciesTypeFlags(pt);
+    const iconSize = 36;
+    // セミの種別（捕獲／羽化・幼虫）が一つも記録されていない場合は、
+    // このポイントに「セミの汎用アイコン」を出さない（他の生き物だけの記録かもしれないため）
+    const hasCicadaType = pt.records.some(r => (r.types||[]).length > 0);
+    let speciesNames = summary.map(([name]) => name);
+    if(hasCicadaType && speciesNames.length === 0){
+      speciesNames = ['その他'];
+      const dom = pointDominantType(pt);
+      flags['その他'] = { captured: dom === 'capture' || dom === 'both', larva: dom === 'larva' || dom === 'both' };
+    }
+
+    // one chip per (species, type) that actually occurred, so capture and
+    // larva records for the same species both stay visible side by side
+    let chips = [];
+    speciesNames.forEach(name=>{
+      const f = flags[name] || { captured:true, larva:false };
+      if(f.captured) chips.push({ name, kind:'capture' });
+      if(f.larva) chips.push({ name, kind:'larva' });
+    });
+
+    // records logged as 羽化・幼虫 without a species tag don't attach to any
+    // name above and would otherwise vanish from the marker entirely — make
+    // sure at least a generic ぬけがら chip still shows up for those.
+    const hasLarvaRecord = pt.records.some(r => (r.types||[]).includes('羽化・幼虫'));
+    if(hasLarvaRecord && !chips.some(c => c.kind === 'larva')){
+      chips.push({ name:'その他', kind:'larva' });
+    }
+
+    // 他の生き物（バッタ・トンボ・アリの巣など）はセミの捕獲／幼虫とは独立に、
+    // そのポイントの記録に含まれていれば必ずチップとして表示する
+    const otherBugSet = new Set();
+    pt.records.forEach(r => (r.otherBugs||[]).forEach(b => otherBugSet.add(b)));
+    otherBugSet.forEach(name => chips.push({ name, kind:'otherbug' }));
+
+    const shown = chips.slice(0,4);
+    const extra = chips.length - shown.length;
+
+    let inner = '';
+    shown.forEach(chip=>{
+      if(chip.kind === 'otherbug'){
+        inner += `<div class="species-chip-icon ring-otherbug">${OTHER_BUG_ICONS[chip.name]||'🐾'}</div>`;
+        return;
+      }
+      const ringClass = chip.kind === 'capture' ? 'ring-capture' : 'ring-larva';
+      const iconSvg = chip.kind === 'capture' ? realisticCicadaSvg(chip.name, iconSize-8) : realisticLarvaSvg(iconSize-8);
+      inner += `<div class="species-chip-icon ${ringClass}">${iconSvg}</div>`;
+    });
+    if(extra > 0){
+      inner += `<div class="species-chip-icon ring-extra">+${extra}</div>`;
+    }
+
+    const count = shown.length + (extra > 0 ? 1 : 0);
+    const width = count * iconSize + (count-1) * 5;
+    const height = iconSize + 8;
+
+    return L.divIcon({
+      html: `<div class="species-cluster">${inner}</div>`,
+      className: '',
+      iconSize: [width, height],
+      iconAnchor: [width/2, height-4],
+      popupAnchor: [0, -height]
+    });
+  }
+
+  // ---------- map ----------
+  function initMap(){
+    // Kyushu-focused default view
+    const kyushuBounds = L.latLngBounds([30.0,128.3],[34.4,132.6]);
+    map = L.map('map', {
+      zoomControl:false,
+      attributionControl:true,
+      maxBounds: kyushuBounds.pad(0.3),
+      maxBoundsViscosity: 0.55,
+      scrollWheelZoom:false
+    }).setView([33.575, 130.39], 13);
+    L.control.zoom({ position:'bottomright' }).addTo(map);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      subdomains: 'abc',
+      maxZoom: 19
+    }).addTo(map);
+    markerLayer = L.layerGroup().addTo(map);
+
+    // wait for the scroll gesture to fully stop, then zoom exactly one level
+    let wheelAccum = 0;
+    let wheelTimer = null;
+    map.getContainer().addEventListener('wheel', function(e){
+      e.preventDefault();
+      wheelAccum += e.deltaY;
+      if(wheelTimer) clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(()=>{
+        if(wheelAccum > 0) map.zoomOut(1);
+        else if(wheelAccum < 0) map.zoomIn(1);
+        wheelAccum = 0;
+        wheelTimer = null;
+      }, 90);
+    }, { passive:false });
+
+    map.on('click', function(e){
+      if(!addMode) return;
+      openNewPointForm(e.latlng);
+    });
+
+    document.getElementById('brandIcon').innerHTML = realisticCicadaSvg('その他', 22);
+  }
+
+  function passesFilter(pt){
+    if(currentFilter === 'all') return true;
+    const dom = pointDominantType(pt);
+    if(currentFilter === '捕獲') return dom === 'capture' || dom === 'both';
+    if(currentFilter === 'larva') return dom === 'larva' || dom === 'both';
+    return true;
+  }
+
+  function renderMarkers(){
+    markerLayer.clearLayers();
+    points.forEach(pt => {
+      if(!passesFilter(pt)) return;
+      const marker = L.marker([pt.lat, pt.lng], { icon: buildClusterIcon(pt) });
+      marker.on('click', () => openDetailPanel(pt.id));
+      marker.addTo(markerLayer);
+    });
+    document.getElementById('pointCount').textContent = points.length;
+  }
+
+  // ---------- species summary ----------
+  function speciesSummary(pt){
+    const counts = {};
+    pt.records.forEach(r => (r.species||[]).forEach(sp => counts[sp] = (counts[sp]||0)+1));
+    return Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ---------- panel: detail view ----------
+  function openDetailPanel(id){
+    const pt = points.find(p => p.id === id);
+    if(!pt) return;
+    document.getElementById('panel').classList.add('open');
+    document.getElementById('panelTitleInput').style.display = 'none';
+    const titleView = document.getElementById('panelTitleView');
+    titleView.style.display = 'block';
+    titleView.textContent = pt.name || '名前未設定のポイント';
+    titleView.dataset.pointId = pt.id;
+    document.getElementById('panelSub').textContent = `記録 ${pt.records.length} 件`;
+
+    let html = '';
+
+    const addressText = pt.address === undefined ? null : pt.address;
+    html += `<div class="address-row">
+        <span class="address-text">${addressText ? escapeHtml(addressText) : '住所を調べています…'}</span>
+        <a class="gmaps-link" href="https://www.google.com/maps?q=${pt.lat},${pt.lng}" target="_blank" rel="noopener">Googleマップで開く</a>
+      </div>`;
+
+    const summary = speciesSummary(pt);
+    if(summary.length){
+      html += '<div class="section-title">よく見られる種類</div><div class="summary-row">';
+      summary.forEach(([sp,count]) => {
+        html += `<div class="species-badge">${escapeHtml(sp)} <b>×${count}</b></div>`;
+      });
+      html += '</div>';
+    }
+
+    html += '<div class="section-title">記録一覧</div>';
+    const sorted = [...pt.records].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+    sorted.forEach(r => {
+      html += `<div class="record-card">
+        <div class="record-actions">
+          <button class="record-edit" onclick="window.__semitori.openEditRecordForm('${pt.id}','${r.id}')">編集</button>
+          <button class="record-del" onclick="window.__semitori.deleteRecord('${pt.id}','${r.id}')">削除</button>
+        </div>
+        <div class="record-top">
+          <span class="record-type-tags">${(r.types||[]).map(t=>`<span class="type-tag ${t}">${escapeHtml(t)}</span>`).join('')}</span>
+          <span class="record-date">${escapeHtml(r.date||'')}</span>
+        </div>
+        ${ (r.species&&r.species.length) ? `<div class="record-species">${r.species.map(s=>`<span class="chip-mini">${escapeHtml(s)}</span>`).join('')}</div>` : '' }
+        ${ (r.time || r.weather) ? `<div class="record-meta">${r.time ? `${TIME_ICONS[r.time]||''} ${escapeHtml(r.time)}` : ''}${r.weather ? `${WEATHER_ICONS[r.weather]||''} ${escapeHtml(r.weather)}` : ''}</div>` : '' }
+        ${ r.tree ? `<div class="record-meta">🌳 ${escapeHtml(r.tree)}</div>` : '' }
+        ${ (r.otherBugs&&r.otherBugs.length) ? `<div class="record-meta">${r.otherBugs.map(b=>`<span>${OTHER_BUG_ICONS[b]||''} ${escapeHtml(b)}</span>`).join(' ')}</div>` : '' }
+        ${ r.note ? `<div class="record-note">${escapeHtml(r.note)}</div>` : '' }
+      </div>`;
+    });
+
+    html += `<button class="add-record-btn" onclick="window.__semitori.openRecordForm('${pt.id}')">＋ この場所に記録を追加</button>`;
+    html += `<button class="delete-point-btn" onclick="window.__semitori.deletePoint('${pt.id}')">このポイントを削除</button>`;
+
+    document.getElementById('panelBody').innerHTML = html;
+
+    if(pt.address === undefined){
+      fetchAddressInBackground(pt);
+    }
+  }
+
+  // ---------- panel: new point form ----------
+  function openNewPointForm(latlng){
+    document.getElementById('panel').classList.add('open');
+    document.getElementById('panelTitleView').style.display = 'none';
+    const input = document.getElementById('panelTitleInput');
+    input.style.display = 'block';
+    input.value = '';
+    input.placeholder = 'ポイントの名前（例：〇〇公園）';
+    document.getElementById('panelSub').textContent = '新しいポイントを登録';
+    document.getElementById('panelBody').innerHTML = recordFormHtml();
+    bindRecordForm({ mode:'new', latlng });
+  }
+
+  function openRecordForm(pointId){
+    document.getElementById('panelBody').innerHTML = recordFormHtml();
+    bindRecordForm({ mode:'add', pointId });
+  }
+
+  function openEditRecordForm(pointId, recordId){
+    const pt = points.find(p => p.id === pointId);
+    const record = pt && pt.records.find(rr => rr.id === recordId);
+    if(!record) return;
+    document.getElementById('panelBody').innerHTML = recordFormHtml(record);
+    bindRecordForm({ mode:'edit', pointId, recordId, record });
+  }
+
+  // r: 既存の記録（編集時のみ渡される）。渡された場合は選択状態・入力値を事前に反映する。
+  function recordFormHtml(r){
+    const today = new Date().toISOString().slice(0,10);
+    const dateVal = r ? (r.date || today) : today;
+    const treeVal = r && r.tree ? escapeHtml(r.tree).replace(/"/g,'&quot;') : '';
+    const noteVal = r && r.note ? escapeHtml(r.note) : '';
+    const isSel = (arr, val) => (arr||[]).includes(val) ? ' sel' : '';
+    return `
+      <div class="form-block">
+        <label>日付</label>
+        <input type="date" id="f_date" value="${dateVal}">
+        <label>セミの種別（任意・複数選択可）</label>
+        <div class="field-hint">※セミを捕まえた／羽化・幼虫やぬけがらを見つけたときだけ選んでください</div>
+        <div class="type-choice" id="f_type">
+          ${TYPES.map(t=>`<div class="choice-chip${isSel(r&&r.types,t)}" data-val="${t}">${t}</div>`).join('')}
+        </div>
+        <label>見られた蝉の種類（複数選択可）</label>
+        <div class="species-choice" id="f_species">
+          ${SPECIES.map(s=>`<div class="choice-chip${isSel(r&&r.species,s)}" data-val="${s}">${s}</div>`).join('')}
+        </div>
+        <label>時間帯（任意）</label>
+        <div class="icon-choice" id="f_time">
+          ${TIME_OPTIONS.map(t=>`<div class="choice-chip${r&&r.time===t.val?' sel':''}" data-val="${t.val}">${t.icon} ${t.val}</div>`).join('')}
+        </div>
+        <label>天気（任意）</label>
+        <div class="icon-choice" id="f_weather">
+          ${WEATHER_OPTIONS.map(w=>`<div class="choice-chip${r&&r.weather===w.val?' sel':''}" data-val="${w.val}">${w.icon} ${w.val}</div>`).join('')}
+        </div>
+        <label>🌳 木の種類（任意）</label>
+        <input type="text" id="f_tree" placeholder="例：クスノキ、サクラ" value="${treeVal}">
+        <label>他の生き物（任意・複数選�
