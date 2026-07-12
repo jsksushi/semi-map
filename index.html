@@ -433,8 +433,23 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 (function(){
+
+  // ---------- Firebase: みんなで共有保存するためのデータベース ----------
+  const firebaseConfig = {
+    apiKey: "AIzaSyBO9-g87D1R1_ecCkSZ7QYxP19J0cgEdOQ",
+    authDomain: "semimap-39a47.firebaseapp.com",
+    projectId: "semimap-39a47",
+    storageBucket: "semimap-39a47.firebasestorage.app",
+    messagingSenderId: "54097211416",
+    appId: "1:54097211416:web:143df786b51ea240e7536d"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const pointsDocRef = db.collection('semimap').doc('data');
 
   const SPECIES = ['アブラゼミ','クマゼミ','ミンミンゼミ','ニイニイゼミ','ツクツクボウシ','ヒグラシ','エゾゼミ','その他'];
   const TYPES = ['捕獲','羽化・幼虫'];
@@ -477,27 +492,19 @@
     { val:'ゾウムシ', icon:WEEVIL_SVG }
   ];
   const OTHER_BUG_ICONS = Object.fromEntries(OTHER_BUG_OPTIONS.map(o=>[o.val,o.icon]));
-  const STORAGE_KEY = 'semitori-points-v1';
 
   let points = [];
   let map, markerLayer;
   let addMode = false;
   let currentFilter = 'all';
 
-  // ---------- storage ----------
-  // window.storage is only available inside certain sandboxed preview environments;
-  // a normal browser (phone Safari/Chrome, GitHub Pages, etc.) doesn't have it, so
-  // we fall back to the browser's real localStorage, which works everywhere.
+  // ---------- storage: Firestore(共有データベース)にみんなで保存 ----------
   async function loadPoints(){
     try{
-      if(window.storage && window.storage.get){
-        const res = await window.storage.get(STORAGE_KEY, false);
-        points = (res && res.value) ? JSON.parse(res.value) : [];
-      } else {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        points = raw ? JSON.parse(raw) : [];
-      }
+      const snap = await pointsDocRef.get();
+      points = (snap.exists && Array.isArray(snap.data().points)) ? snap.data().points : [];
     }catch(e){
+      console.error('読み込みに失敗しました', e);
       points = [];
     }
     // migrate legacy records: single `type` string -> `types` array, merge 羽化/幼虫発見
@@ -517,11 +524,7 @@
   }
   async function savePoints(){
     try{
-      if(window.storage && window.storage.set){
-        await window.storage.set(STORAGE_KEY, JSON.stringify(points), false);
-      } else {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(points));
-      }
+      await pointsDocRef.set({ points });
     }
     catch(e){ console.error('保存に失敗しました', e); }
   }
